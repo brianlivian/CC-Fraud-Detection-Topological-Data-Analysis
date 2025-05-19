@@ -209,7 +209,7 @@ print(result['p_value'])
 
 
 # %% [markdown]
-# ## L1 Norms obtained via sliding window embeddings of PCA vectors surprisingly have significant affect on response variable
+# ## L1 Norms obtained via sliding window embeddings of PCA vectors surprisingly have significant effect on response variable
 
 # %%
 # continuous variables
@@ -429,8 +429,11 @@ plt.show()
 
 print(*feature_importance['Feature'].tolist(), sep=', ')
 
+# %% [markdown]
+# - Could make iterations less later, moreso doing this project to brush up on TDA and Gradient Boosted Trees
+
 # %%
 lgbm.plot_metric(lgb)
 
 # %%
-# !jupytext --set-formats ipynb,py cc.ipynb --sync
+# !jupytext --set-formats ipynb,py creditcardfraud.ipynb --sync
