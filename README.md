@@ -44,9 +44,4 @@ Surprisingly, **TDA-derived features** (L1 norms of the persistence landscape cu
 
 ## 📈 Key Finding
 
-> One of the **TDA-based features (N2)** — derived from the L1 norm of the persistence landscape for 2-sized sliding window embeddings — emerged as a surprisingly strong indicator for fraud.
-
----
-
-## 📁 Project Structure
-
+One of the **TDA-based features (N2)** — derived from the L1 norm of the persistence landscape for 2-sized sliding window embeddings — emerged as a surprisingly strong indicator for fraud.
