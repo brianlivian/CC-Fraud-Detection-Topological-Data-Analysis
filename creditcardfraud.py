@@ -378,11 +378,25 @@ print(study.best_trial.params)
 
 
 # %%
-vis.plot_optimization_history(study).show()
-vis.plot_param_importances(study).show()
-vis.plot_parallel_coordinate(study).show()
-vis.plot_slice(study).show()
-vis.plot_contour(study).show()
+# Optimization History
+fig1 = vis.plot_optimization_history(study)
+display(HTML(fig1.to_html(include_plotlyjs='cdn')))
+
+# Hyperparameter Importances
+fig2 = vis.plot_param_importances(study)
+display(HTML(fig2.to_html(include_plotlyjs='cdn')))
+
+# Parallel Coordinate Plot
+fig3 = vis.plot_parallel_coordinate(study)
+display(HTML(fig3.to_html(include_plotlyjs='cdn')))
+
+# Slice Plot
+fig4 = vis.plot_slice(study)
+display(HTML(fig4.to_html(include_plotlyjs='cdn')))
+
+# Contour Plot
+fig5 = vis.plot_contour(study)
+display(HTML(fig5.to_html(include_plotlyjs='cdn')))
 
 # %%
 # -- Get optimization history values
