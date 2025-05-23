@@ -44,6 +44,7 @@ import optuna
 import optuna.visualization as vis
 from optuna.importance import get_param_importances
 from scipy.stats import ttest_ind, levene
+from IPython.display import HTML
 
 # %%
 os.listdir('/Users/brianlivian/.cache/kagglehub/datasets/mlg-ulb/creditcardfraud/versions/3')
@@ -91,21 +92,24 @@ plt.title('2D Point Cloud')
 plt.show()
 
 # %%
+layers = 10
+
+# %%
 # Plot the persistence diagram and landscape for a random point cloud sliding window
 pointcloud = df['E2'][0]
 
 vrp = VietorisRipsPersistence()
-plt.figure()
-vrp.fit_transform_plot(pointcloud.reshape(1, *pointcloud.shape))
-plt.show()
+fig = vrp.plot(vrp.fit_transform(pointcloud.reshape(1, *pointcloud.shape)))
+HTML(fig.to_html(include_plotlyjs='cdn'))
 
+# %%
 pl = PersistenceLandscape(layers)
 persistencediagram = vrp.fit_transform(pointcloud.reshape(1, *pointcloud.shape))
 landscapedata = pl.fit_transform(persistencediagram)
 fig = pl.plot(landscapedata, 
-    homology_dimensions = [0], 
+    homology_dimensions = [1], 
     plotly_params=None)
-fig.show()
+HTML(fig.to_html(include_plotlyjs='cdn'))
 
 # %%
 fig = plt.figure()
@@ -124,16 +128,17 @@ plt.show()
 pointcloud = df['E3'][0]
 
 vrp = VietorisRipsPersistence()
-vrp.fit_transform_plot(pointcloud.reshape(1, *pointcloud.shape))
-plt.show()
+fig = vrp.plot(vrp.fit_transform(pointcloud.reshape(1, *pointcloud.shape)))
+HTML(fig.to_html(include_plotlyjs='cdn'))
 
+# %%
 pl = PersistenceLandscape(layers)
 persistencediagram = vrp.fit_transform(pointcloud.reshape(1, *pointcloud.shape))
 landscapedata = pl.fit_transform(persistencediagram)
 fig = pl.plot(landscapedata, 
-    homology_dimensions = [0], 
+    homology_dimensions = [1], 
     plotly_params=None)
-fig.show()
+HTML(fig.to_html(include_plotlyjs='cdn'))
 
 
 # %%
