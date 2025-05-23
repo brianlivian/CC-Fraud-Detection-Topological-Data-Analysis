@@ -41,8 +41,9 @@ import lightgbm as lgbm
 from lightgbm import LGBMClassifier, early_stopping  
 from xgboost import XGBClassifier  
 import optuna
+import optuna.visualization as vis
+from optuna.importance import get_param_importances
 from scipy.stats import ttest_ind, levene
-
 
 # %%
 os.listdir('/Users/brianlivian/.cache/kagglehub/datasets/mlg-ulb/creditcardfraud/versions/3')
@@ -101,7 +102,10 @@ plt.show()
 pl = PersistenceLandscape()
 persistencediagram = vrp.fit_transform(pointcloud.reshape(1, *pointcloud.shape))
 landscapedata = pl.fit_transform(persistencediagram)
-pl.plot(landscapedata, homology_dimensions = [1], plotly_params=None)
+fig = pl.plot(landscapedata, 
+    homology_dimensions = [0], 
+    plotly_params=None)
+fig.show()
 
 # %%
 fig = plt.figure()
@@ -126,7 +130,10 @@ plt.show()
 pl = PersistenceLandscape()
 persistencediagram = vrp.fit_transform(pointcloud.reshape(1, *pointcloud.shape))
 landscapedata = pl.fit_transform(persistencediagram)
-pl.plot(landscapedata, homology_dimensions = [1], plotly_params=None)
+fig = pl.plot(landscapedata, 
+    homology_dimensions = [0], 
+    plotly_params=None)
+fig.show()
 
 
 # %%
@@ -144,18 +151,33 @@ def Ftseq(diagram):
 # Calculate Lp norm:
 def Lpnorm(tseq, landscapevalues, p = 1):
     norms = []
-    if p.lower() == 'auc':
-        for point in zip(tseq,landscapevalues):
-            norms.append(np.trapz(landscapevalues, tseq))
-    else: 
-        for point in zip(tseq,landscapevalues):
-            norms.append(np.linalg.norm(point, p))        
-    return sum(norms)
+    if p == 'aucoriginal':
+        layervalues = landscapevalues[layers]
+        for point in zip(tseq,layervalues):
+            norms.append(np.trapz(layervalues, tseq))
+        return(sum(norms))
+    elif p == 'aucUpdated':
+        layervalues = landscapevalues[layers]
+        return (np.trapz(layervalues))
+    else:
+        normvalues = []
+        for layer in range(layers, 2*layers):
+            layervalues = landscapevalues[layer]
+            normvalue = np.linalg.norm(layervalues,p)**p
+            if normvalue == 0:
+                break
+            else: 
+                normvalues.append(normvalue)
+        return (np.sum(normvalues)**(1/p))
 
+
+# %% [markdown]
+# ## Compute the L1 Norms
 
 # %%
+layers = 10
 vrp = VietorisRipsPersistence()
-pl = PersistenceLandscape()
+pl = PersistenceLandscape(layers)
 
 for e in tqdm(range(2,10), desc = "Window Sizes", unit="e"):
     Norms = []
@@ -163,8 +185,8 @@ for e in tqdm(range(2,10), desc = "Window Sizes", unit="e"):
         persistencediagram = vrp.fit_transform(pointcloud.reshape(1, *pointcloud.shape))
         landscapedata = pl.fit_transform(persistencediagram)
         tseq = Ftseq(persistencediagram[0])
-        yvalues = landscapedata[0][1]
-        Norms.append(Lpnorm(tseq, yvalues, p='auc'))
+        Norm = Lpnorm(tseq, landscapedata[0], p = 1)
+        Norms.append(Norm)
     df['N{}'.format(e)] = Norms
 
 
@@ -182,7 +204,6 @@ df['Class'] = df['Class'].astype(str)
 # ## (Welch's) t test on whether difference in means of each variable is significant
 
 # %%
-
 def t_test(df, col, class_col='Class', group_labels=('0', '1'), alpha=0.05):
     group_0 = df[df[class_col] == group_labels[0]][col]
     group_1 = df[df[class_col] == group_labels[1]][col]
@@ -309,93 +330,164 @@ X_train_balanced = X_train_balanced[['V14', 'Time', 'V4', 'V12','Amount', 'N2']]
 # %%
 X_train.shape
 
-
 # %% [markdown]
-# ## Hyperparameter tune with Optuna using cross validation
-# - Could use more trials later for better results
+# ## Hyperparameter tune with Optuna using cross validation and f_beta = 2 for more weight on recall and to reduce false negatives
 
 # %%
-# Objective function for Optuna
+from sklearn.metrics import make_scorer, fbeta_score
+
+
+fbeta = make_scorer(fbeta_score, beta=2)
+
 def objective(trial):
-    # Suggest hyperparameters
     params = {
-        'n_estimators': trial.suggest_int('n_estimators', 100, 2000),
+        'n_estimators': trial.suggest_int('n_estimators', 20, 250),
         'learning_rate': trial.suggest_float('learning_rate', 1e-4, 0.3, log=True),
-        'num_leaves': trial.suggest_int('num_leaves', 20, 1500),
+        'num_leaves': trial.suggest_int('num_leaves', 20, 1000),
         'max_depth': trial.suggest_int('max_depth', 3, 50),
         'reg_alpha': trial.suggest_float('reg_alpha', 1e-4, 10.0, log=True),
         'reg_lambda': trial.suggest_float('reg_lambda', 1e-4, 10.0, log=True),
-        'subsample': trial.suggest_float('subsample', 0.5, 1.0),
-        'colsample_bytree': trial.suggest_float('colsample_bytree', 0.5, 1.0),
-        'min_gain_to_split': trial.suggest_float('min_gain_to_split', 0.0, 0.1),
         'random_state': 42,
         'objective': 'binary',
-        'metric': 'binary_logloss'
+        'metric': 'binary_logloss',
+        'verbose': -1
     }
 
-    # Build pipeline: SMOTE-Tomek + LGBM
     pipeline = Pipeline([
         ('smote', SMOTETomek(random_state=42)),
         ('model', LGBMClassifier(**params))
     ])
 
-    # Use Stratified CV and score on F1 (sensitive to class imbalance)
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    f1 = cross_val_score(pipeline, X_train, y_train, cv=cv, scoring='f1', n_jobs=-1)
+    scores = cross_val_score(pipeline, X_train, y_train, cv=cv, scoring=fbeta, n_jobs=-1)
 
-    return f1.mean()
+    return scores.mean()
 
-# Create Optuna study
+# Create and run Optuna study
 study = optuna.create_study(direction='maximize')
-study.optimize(objective, n_trials=2, timeout=1800)
+study.optimize(objective, n_trials=25)
 
-
-# Print best result
+# Best result
 print("Best trial:")
 print(study.best_trial.params)
+
+
+# %%
+vis.plot_optimization_history(study).show()
+vis.plot_param_importances(study).show()
+vis.plot_parallel_coordinate(study).show()
+vis.plot_slice(study).show()
+vis.plot_contour(study).show()
+
+# %%
+# -- Get optimization history values
+values = [t.value for t in study.trials if t.value is not None]
+
+# -- Get param importances
+importances = get_param_importances(study)
+params = list(importances.keys())
+scores = list(importances.values())
+
+# -- For contour plot, extract values for two chosen params
+param_x = 'learning_rate'
+param_y = 'n_estimators'
+x, y, z = [], [], []
+
+for t in study.trials:
+    if t.value is None:
+        continue
+    if param_x in t.params and param_y in t.params:
+        x.append(float(t.params[param_x]))
+        y.append(int(t.params[param_y]))
+        z.append(t.value)
+
+# -- Create contour grid if enough points
+has_contour = len(x) > 10
+
+# -- Plot all in one figure
+fig = plt.figure(figsize=(18, 5))
+
+# 1. Optimization history
+plt.subplot(1, 3, 1)
+plt.plot(range(len(values)), values, marker='o')
+plt.xlabel("Trial")
+plt.ylabel("Objective Value")
+plt.title("Optimization History")
+plt.grid(True)
+
+# 2. Parameter importances
+plt.subplot(1, 3, 2)
+plt.barh(params[::-1], scores[::-1])
+plt.xlabel("Importance")
+plt.title("Hyperparameter Importances")
+
+# 3. Contour plot: learning_rate vs n_estimators
+plt.subplot(1, 3, 3)
+if has_contour:
+    contour = plt.tricontourf(x, y, z, levels=20, cmap='viridis')
+    plt.colorbar(contour)
+    plt.xlabel(param_x)
+    plt.ylabel(param_y)
+    plt.title("Contour: {} vs. {}".format(param_x, param_y))
+else:
+    plt.text(0.5, 0.5, "Not enough data for contour plot", ha='center', va='center')
+    plt.axis('off')
+
+plt.tight_layout()
+plt.show()
+
 
 # %% [markdown]
 # - Apply SmoteTomek in cross validation as shown below to avoid data leakage
 
 # %%
+# Rebuild pipeline with best params from Optuna
 pipeline = Pipeline([
     ('smote', SMOTETomek(random_state=42)),
-    ('model', LGBMClassifier(**study.best_trial.params)
-)
+    ('model', LGBMClassifier(**study.best_trial.params, verbose=-1))
 ])
 
 kfold = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
-# Now cross_val_score will SMOTE **within each fold** properly
 scores = {
     'accuracy': cross_val_score(pipeline, X_train, y_train, cv=kfold, scoring='accuracy').mean(),
-    'recall':   cross_val_score(pipeline, X_train, y_train, cv=kfold, scoring='recall').mean(),
-    'precision':cross_val_score(pipeline, X_train, y_train, cv=kfold, scoring='precision').mean(),
-    'f1':       cross_val_score(pipeline, X_train, y_train, cv=kfold, scoring='f1').mean(),
-    'roc_auc':  cross_val_score(pipeline, X_train, y_train, cv=kfold, scoring='roc_auc').mean()
+    'recall': cross_val_score(pipeline, X_train, y_train, cv=kfold, scoring='recall').mean(),
+    'precision': cross_val_score(pipeline, X_train, y_train, cv=kfold, scoring='precision').mean(),
+    'f1': cross_val_score(pipeline, X_train, y_train, cv=kfold, scoring='f1').mean(),
+    'f2': cross_val_score(pipeline, X_train, y_train, cv=kfold, scoring=fbeta).mean(),
+    'roc_auc': cross_val_score(pipeline, X_train, y_train, cv=kfold, scoring='roc_auc').mean(),
 }
-print(scores)
 
+print(scores)
 
 # %% [markdown]
 # ## Run on test set
 
 # %%
 lgb = LGBMClassifier(**study.best_trial.params)
-lgb.fit(X_train_balanced,y_train_balanced,
-        # early_stopping_rounds=100,
+lgb.fit(X_train_balanced, y_train_balanced,
         eval_set=[(X_valid, y_valid), (X_train_balanced, y_train_balanced)])
+
 preds_train = lgb.predict(X_train_balanced)
-accuracy_train, recall_train, precision_train, f1_train, auc_train= accuracy_score(y_train_balanced, preds_train), recall_score(y_train_balanced, preds_train), precision_score(y_train_balanced, preds_train), f1_score(y_train_balanced, preds_train), roc_auc_score(y_train_balanced, preds_train)
+accuracy_train = accuracy_score(y_train_balanced, preds_train)
+recall_train = recall_score(y_train_balanced, preds_train)
+precision_train = precision_score(y_train_balanced, preds_train)
+f1_train = f1_score(y_train_balanced, preds_train)
+auc_train = roc_auc_score(y_train_balanced, preds_train)
+fbeta_train = fbeta_score(y_train_balanced, preds_train, beta=2)
 
 preds_test = lgb.predict(X_test)
-accuracy_test, recall_test, precision_test, f1_test, auc_test = accuracy_score(y_test, preds_test), recall_score(y_test, preds_test), precision_score(y_test, preds_test), f1_score(y_test, preds_test), roc_auc_score(y_test, preds_test)
-
+accuracy_test = accuracy_score(y_test, preds_test)
+recall_test = recall_score(y_test, preds_test)
+precision_test = precision_score(y_test, preds_test)
+f1_test = f1_score(y_test, preds_test)
+auc_test = roc_auc_score(y_test, preds_test)
+fbeta_test = fbeta_score(y_test, preds_test, beta=2)
 
 pd.DataFrame({
-    'Metric':['Accuracy', 'Reccall', 'Precision', 'F1', 'AUC'],
-    'Train Score' : [accuracy_train,recall_train,precision_train, f1_train,auc_train],
-    'Test Score' : [accuracy_test,recall_test,precision_test, f1_test,auc_test],
+    'Metric': ['Accuracy', 'Recall', 'Precision', 'F1', 'F2', 'AUC'],
+    'Train Score': [accuracy_train, recall_train, precision_train, f1_train, fbeta_train, auc_train],
+    'Test Score': [accuracy_test, recall_test, precision_test, f1_test, fbeta_test, auc_test],
 })
 
 
@@ -428,9 +520,6 @@ plt.tight_layout()
 plt.show()
 
 print(*feature_importance['Feature'].tolist(), sep=', ')
-
-# %% [markdown]
-# - Could make iterations less later, moreso doing this project to brush up on TDA and Gradient Boosted Trees
 
 # %%
 lgbm.plot_metric(lgb)
