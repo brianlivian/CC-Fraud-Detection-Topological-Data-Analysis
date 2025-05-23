@@ -1,4 +1,9 @@
 # 📊 TDA-Based Fraud Detection (Weekend Project)
+## 📊 Interactive Plots
+
+You can explore the project with interactive visualizations here:  
+👉 [View on nbviewer](https://nbviewer.org/github/brianlivian/CC-Fraud-Detection-Topological-Data-Analysis/blob/main/creditcardfraud.ipynb)
+
 
 This repository contains a weekend project exploring how **Topological Data Analysis (TDA)** techniques — specifically **sliding window embeddings of PCA vectors** followed by **L1 norm calculations of persistence landscapes** — can be used to detect credit card fraud. 
 
