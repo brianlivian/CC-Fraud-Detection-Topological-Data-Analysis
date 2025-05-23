@@ -398,64 +398,6 @@ display(HTML(fig4.to_html(include_plotlyjs='cdn')))
 fig5 = vis.plot_contour(study)
 display(HTML(fig5.to_html(include_plotlyjs='cdn')))
 
-# %%
-# -- Get optimization history values
-values = [t.value for t in study.trials if t.value is not None]
-
-# -- Get param importances
-importances = get_param_importances(study)
-params = list(importances.keys())
-scores = list(importances.values())
-
-# -- For contour plot, extract values for two chosen params
-param_x = 'learning_rate'
-param_y = 'n_estimators'
-x, y, z = [], [], []
-
-for t in study.trials:
-    if t.value is None:
-        continue
-    if param_x in t.params and param_y in t.params:
-        x.append(float(t.params[param_x]))
-        y.append(int(t.params[param_y]))
-        z.append(t.value)
-
-# -- Create contour grid if enough points
-has_contour = len(x) > 10
-
-# -- Plot all in one figure
-fig = plt.figure(figsize=(18, 5))
-
-# 1. Optimization history
-plt.subplot(1, 3, 1)
-plt.plot(range(len(values)), values, marker='o')
-plt.xlabel("Trial")
-plt.ylabel("Objective Value")
-plt.title("Optimization History")
-plt.grid(True)
-
-# 2. Parameter importances
-plt.subplot(1, 3, 2)
-plt.barh(params[::-1], scores[::-1])
-plt.xlabel("Importance")
-plt.title("Hyperparameter Importances")
-
-# 3. Contour plot: learning_rate vs n_estimators
-plt.subplot(1, 3, 3)
-if has_contour:
-    contour = plt.tricontourf(x, y, z, levels=20, cmap='viridis')
-    plt.colorbar(contour)
-    plt.xlabel(param_x)
-    plt.ylabel(param_y)
-    plt.title("Contour: {} vs. {}".format(param_x, param_y))
-else:
-    plt.text(0.5, 0.5, "Not enough data for contour plot", ha='center', va='center')
-    plt.axis('off')
-
-plt.tight_layout()
-plt.show()
-
-
 # %% [markdown]
 # - Apply SmoteTomek in cross validation as shown below to avoid data leakage
 
