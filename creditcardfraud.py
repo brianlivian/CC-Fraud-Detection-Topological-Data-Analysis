@@ -99,7 +99,7 @@ plt.figure()
 vrp.fit_transform_plot(pointcloud.reshape(1, *pointcloud.shape))
 plt.show()
 
-pl = PersistenceLandscape()
+pl = PersistenceLandscape(layers)
 persistencediagram = vrp.fit_transform(pointcloud.reshape(1, *pointcloud.shape))
 landscapedata = pl.fit_transform(persistencediagram)
 fig = pl.plot(landscapedata, 
@@ -127,7 +127,7 @@ vrp = VietorisRipsPersistence()
 vrp.fit_transform_plot(pointcloud.reshape(1, *pointcloud.shape))
 plt.show()
 
-pl = PersistenceLandscape()
+pl = PersistenceLandscape(layers)
 persistencediagram = vrp.fit_transform(pointcloud.reshape(1, *pointcloud.shape))
 landscapedata = pl.fit_transform(persistencediagram)
 fig = pl.plot(landscapedata, 
