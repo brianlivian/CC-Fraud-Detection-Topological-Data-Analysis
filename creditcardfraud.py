@@ -72,7 +72,7 @@ df
 # ## Apply sliding window embeddings (of size 2-10) to each PCA vector (column wise) to create the point clouds 
 
 # %%
-for e in tqdm(range(2,10), desc = "Window Sizes", unit="e"):
+for e in tqdm(range(2,4), desc = "Window Sizes", unit="e"):
     window_size = e
     stride = 1
     X_sws = []
@@ -156,24 +156,15 @@ def Ftseq(diagram):
 # Calculate Lp norm:
 def Lpnorm(tseq, landscapevalues, p = 1):
     norms = []
-    if p == 'aucoriginal':
-        layervalues = landscapevalues[layers]
-        for point in zip(tseq,layervalues):
-            norms.append(np.trapz(layervalues, tseq))
-        return(sum(norms))
-    elif p == 'aucUpdated':
-        layervalues = landscapevalues[layers]
-        return (np.trapz(layervalues))
-    else:
-        normvalues = []
-        for layer in range(layers, 2*layers):
-            layervalues = landscapevalues[layer]
-            normvalue = np.linalg.norm(layervalues,p)**p
-            if normvalue == 0:
-                break
-            else: 
-                normvalues.append(normvalue)
-        return (np.sum(normvalues)**(1/p))
+    normvalues = []
+    for layer in range(layers, 2*layers):
+        layervalues = landscapevalues[layer]
+        normvalue = np.linalg.norm(layervalues,p)**p
+        if normvalue == 0:
+            break
+        else: 
+            normvalues.append(normvalue)
+    return (np.sum(normvalues)**(1/p))
 
 
 # %% [markdown]
@@ -184,7 +175,7 @@ layers = 10
 vrp = VietorisRipsPersistence()
 pl = PersistenceLandscape(layers)
 
-for e in tqdm(range(2,10), desc = "Window Sizes", unit="e"):
+for e in tqdm(range(2,4), desc = "Window Sizes", unit="e"):
     Norms = []
     for pointcloud in tqdm(df['E{}'.format(e)], desc="Computing norms", unit="cloud"):
         persistencediagram = vrp.fit_transform(pointcloud.reshape(1, *pointcloud.shape))
@@ -196,13 +187,44 @@ for e in tqdm(range(2,10), desc = "Window Sizes", unit="e"):
 
 
 # %%
-df.to_csv('data.csv')
+# df.to_csv('data.csv')
 
 # %%
-df = pd.read_csv('data.csv')
+# df = pd.read_csv('data.csv')
 
 # %%
 df['Class'] = df['Class'].astype(str)
+
+# %% [markdown]
+# ## Applying Benfords Law
+
+# %%
+from benfordslaw import benfordslaw
+
+# Initialize
+bl = benfordslaw(pos=1, alpha=0.05)
+results = bl.fit(df[df['Class'] == '0']['Amount'])
+# Plot
+bl.plot()
+# Initialize
+bl = benfordslaw(pos=1, alpha=0.05)
+results = bl.fit(df[df['Class'] == '1']['Amount'])
+
+# Plot
+bl.plot()
+
+
+# %%
+def benfords_p1(x):
+    x = int(str(x)[0])
+    if x != 0:
+        return np.log10(1 + 1/x) 
+    else:
+        return np.nan
+
+
+# %%
+df['benfords_p1'] = df['Amount'].apply(lambda x: benfords_p1(x))
 
 
 # %% [markdown]
@@ -234,14 +256,20 @@ result = t_test(df, 'N2')
 print(result['p_value'])
 
 
+# %%
+# df['benfords_p1'].fillna(0, inplace = True)
+
 # %% [markdown]
 # ## L1 Norms obtained via sliding window embeddings of PCA vectors surprisingly have significant effect on response variable
+
+# %%
+df['benfords_p1_filled'] = df['benfords_p1'].fillna(0)
 
 # %%
 # continuous variables
 continuous = ['Time', 'Amount', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8',
        'V9', 'V10', 'V11', 'V12', 'V13', 'V14', 'V15', 'V16', 'V17', 'V18',
-       'V19', 'V20', 'V21', 'V22', 'V23', 'V24', 'V25', 'V26', 'V27', 'V28','N2', 'N3', 'N4', 'N5', 'N6', 'N7', 'N8', 'N9']
+       'V19', 'V20', 'V21', 'V22', 'V23', 'V24', 'V25', 'V26', 'V27', 'V28','N2', 'N3', 'benfords_p1_filled']
 for col in continuous:
     plt.figure(figsize = (18, 8))
     plt.suptitle(col + "\n t test p value: " + str(t_test(df, col)['p_value']) , size = 20, fontweight = 'bold')
@@ -253,7 +281,10 @@ for col in continuous:
 
 # %%
 plt.figure(figsize = (20,12))
-sns.heatmap(df[['N2', 'N3', 'N4', 'N5', 'N6', 'N7', 'N8', 'N9']].corr(), annot = True)
+sns.heatmap(df[['N2', 'N3']].corr(), annot = True)
+
+# %%
+df['benfords_p1'] = df['benfords_p1'].fillna(0)
 
 # %% [markdown]
 # ## SMOTETomek to balance the dataset
@@ -261,7 +292,7 @@ sns.heatmap(df[['N2', 'N3', 'N4', 'N5', 'N6', 'N7', 'N8', 'N9']].corr(), annot =
 # %%
 X = df[['Time', 'Amount', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8',
        'V9', 'V10', 'V11', 'V12', 'V13', 'V14', 'V15', 'V16', 'V17', 'V18',
-       'V19', 'V20', 'V21', 'V22', 'V23', 'V24', 'V25', 'V26', 'V27', 'V28','N2', 'N3', 'N4', 'N5', 'N6', 'N7', 'N8', 'N9']]
+       'V19', 'V20', 'V21', 'V22', 'V23', 'V24', 'V25', 'V26', 'V27', 'V28','N2', 'N3', 'benfords_p1']]
 y = df['Class'].astype(int)
 
 # 3. Split once for train / test, once again for hold-out valid
@@ -327,10 +358,10 @@ print(*feature_importance['Feature'].tolist(), sep=', ')
 # - L1 Norms are not as strong as I was hoping, I'm including the strongest norm (N2) along with the other top features
 
 # %%
-X_train = X_train[['V14', 'Time', 'V4', 'V12','Amount', 'N2']]
-X_test = X_test[['V14', 'Time', 'V4', 'V12','Amount', 'N2']]
-X_valid = X_valid[['V14', 'Time', 'V4', 'V12','Amount', 'N2']]
-X_train_balanced = X_train_balanced[['V14', 'Time', 'V4', 'V12','Amount', 'N2']]
+X_train = X_train[['V14', 'Time', 'V4', 'V12','Amount', 'N2', 'benfords_p1']]
+X_test = X_test[['V14', 'Time', 'V4', 'V12','Amount', 'N2', 'benfords_p1']]
+X_valid = X_valid[['V14', 'Time', 'V4', 'V12','Amount', 'N2', 'benfords_p1']]
+X_train_balanced = X_train_balanced[['V14', 'Time', 'V4', 'V12','Amount', 'N2', 'benfords_p1']]
 
 # %%
 X_train.shape
